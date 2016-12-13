@@ -1,0 +1,18 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/fs03/share/users/guillaume.emery/home/Documents/5a/detection_comptage_voiture_pieton_projet/projet/src/main.cpp
+iostream
+-
+opencv2/opencv.hpp
+-
+opencv2/core/core.hpp
+-
+opencv2/highgui/highgui.hpp
+-
+
