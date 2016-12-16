@@ -1,4 +1,4 @@
-# Install script for directory: /fs03/share/users/guillaume.emery/home/Documents/5a/detection_comptage_voiture_pieton_projet/projet/src
+# Install script for directory: /fs03/share/users/guillaume.emery/home/Documents/5a/car_coutning_projet/CarPeopleProject/src
 
 # Set the install prefix
 IF(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -38,7 +38,7 @@ ELSE(CMAKE_INSTALL_COMPONENT)
   SET(CMAKE_INSTALL_MANIFEST "install_manifest.txt")
 ENDIF(CMAKE_INSTALL_COMPONENT)
 
-FILE(WRITE "/fs03/share/users/guillaume.emery/home/Documents/5a/detection_comptage_voiture_pieton_projet/projet/bin/${CMAKE_INSTALL_MANIFEST}" "")
+FILE(WRITE "/fs03/share/users/guillaume.emery/home/Documents/5a/car_coutning_projet/CarPeopleProject/bin/${CMAKE_INSTALL_MANIFEST}" "")
 FOREACH(file ${CMAKE_INSTALL_MANIFEST_FILES})
-  FILE(APPEND "/fs03/share/users/guillaume.emery/home/Documents/5a/detection_comptage_voiture_pieton_projet/projet/bin/${CMAKE_INSTALL_MANIFEST}" "${file}\n")
+  FILE(APPEND "/fs03/share/users/guillaume.emery/home/Documents/5a/car_coutning_projet/CarPeopleProject/bin/${CMAKE_INSTALL_MANIFEST}" "${file}\n")
 ENDFOREACH(file)
