@@ -1,5 +1,0 @@
-cmake_minimum_required(VERSION 2.8)
-project( countCars )
-find_package( OpenCV REQUIRED )
-add_executable( countCars main.cpp )
-target_link_libraries( countCars ${OpenCV_LIBS} )

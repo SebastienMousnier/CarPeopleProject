@@ -43,7 +43,9 @@ int main(void) {
 
     int carCount = 0;
 
-    capVideo.open("CarsDrivingUnderBridge.mp4");
+    //capVideo.open("CarsDrivingUnderBridge.mp4");
+
+    capVideo.open("ourVideo.mp4");
 
     if (!capVideo.isOpened()) {                                                 // if unable to open video file
         std::cout << "error reading video file" << std::endl << std::endl;      // show error message
@@ -96,15 +98,16 @@ int main(void) {
 
         cv::imshow("imgThresh", imgThresh);
 
+        // Plus l'élément est grand plus on élargit la zone de blanc
         cv::Mat structuringElement3x3 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
         cv::Mat structuringElement5x5 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
         cv::Mat structuringElement7x7 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 7));
         cv::Mat structuringElement15x15 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(15, 15));
 
         for (unsigned int i = 0; i < 2; i++) {
-            cv::dilate(imgThresh, imgThresh, structuringElement5x5);
-            cv::dilate(imgThresh, imgThresh, structuringElement5x5);
-            cv::erode(imgThresh, imgThresh, structuringElement5x5);
+            cv::dilate(imgThresh, imgThresh, structuringElement15x15);
+            cv::dilate(imgThresh, imgThresh, structuringElement15x15);
+            cv::erode(imgThresh, imgThresh, structuringElement15x15);
         }
 
         cv::Mat imgThreshCopy = imgThresh.clone();
@@ -175,7 +178,9 @@ int main(void) {
         imgFrame1 = imgFrame2.clone();           // move frame 1 up to where frame 2 is
 
         if ((capVideo.get(CV_CAP_PROP_POS_FRAMES) + 1) < capVideo.get(CV_CAP_PROP_FRAME_COUNT)) {
-            capVideo.read(imgFrame2);
+
+            for(int i=0 ; i<2; ++i)
+                capVideo.read(imgFrame2);
         }
         else {
             std::cout << "end of video\n";
@@ -208,7 +213,7 @@ void matchCurrentFrameBlobsToExistingBlobs(std::vector<Blob> &existingBlobs, std
     for (auto &currentFrameBlob : currentFrameBlobs) {
 
         int intIndexOfLeastDistance = 0;
-        double dblLeastDistance = 100000.0;
+        double dblLeastDistance = 100000.0; // init = 100000
 
         for (unsigned int i = 0; i < existingBlobs.size(); i++) {
 
@@ -315,7 +320,8 @@ bool checkIfBlobsCrossedTheLine(std::vector<Blob> &blobs, int &intHorizontalLine
             int prevFrameIndex = (int)blob.centerPositions.size() - 2;
             int currFrameIndex = (int)blob.centerPositions.size() - 1;
 
-            if (blob.centerPositions[prevFrameIndex].y > intHorizontalLinePosition && blob.centerPositions[currFrameIndex].y <= intHorizontalLinePosition) {
+            if (blob.centerPositions[prevFrameIndex].y < intHorizontalLinePosition && blob.centerPositions[currFrameIndex].y >= intHorizontalLinePosition) {  // haut vers bas
+            //if (blob.centerPositions[prevFrameIndex].y >= intHorizontalLinePosition && blob.centerPositions[currFrameIndex].y < intHorizontalLinePosition) {  // bas vers haut
                 carCount++;
                 blnAtLeastOneBlobCrossedTheLine = true;
             }
