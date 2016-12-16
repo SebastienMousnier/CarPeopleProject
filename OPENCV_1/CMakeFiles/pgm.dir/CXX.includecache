@@ -1,0 +1,28 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/fs03/share/users/sebastien.mousnier/home/Bureau/PROJET_MAJEURE/OpenCV_3_Car_Counting_Cpp-master/src/Blob.h
+opencv2/core/core.hpp
+-
+opencv2/highgui/highgui.hpp
+-
+opencv2/imgproc/imgproc.hpp
+-
+
+/fs03/share/users/sebastien.mousnier/home/Bureau/PROJET_MAJEURE/OpenCV_3_Car_Counting_Cpp-master/src/main.cpp
+opencv2/core/core.hpp
+-
+opencv2/highgui/highgui.hpp
+-
+opencv2/imgproc/imgproc.hpp
+-
+iostream
+-
+Blob.h
+/fs03/share/users/sebastien.mousnier/home/Bureau/PROJET_MAJEURE/OpenCV_3_Car_Counting_Cpp-master/src/Blob.h
+

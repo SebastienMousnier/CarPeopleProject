@@ -1,0 +1,22 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/fs03/share/users/guillaume.emery/home/Documents/5a/car_coutning_projet/CarPeopleProject/src/main.cpp
+iostream
+-
+sstream
+-
+opencv2/opencv.hpp
+-
+opencv2/core/core.hpp
+-
+opencv2/highgui/highgui.hpp
+-
+opencv2/video/background_segm.hpp
+-
+
