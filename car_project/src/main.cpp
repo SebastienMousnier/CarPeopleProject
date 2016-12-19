@@ -96,7 +96,7 @@ int main(void) {
 
         cv::threshold(imgDifference, imgThresh, 30, 255.0, CV_THRESH_BINARY);
 
-        cv::imshow("imgThresh", imgThresh);
+        //cv::imshow("imgThresh", imgThresh);
 
         // Plus l'élément est grand plus on élargit la zone de blanc
         cv::Mat structuringElement3x3 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
@@ -167,7 +167,7 @@ int main(void) {
 
         drawCarCountOnImage(carCount, imgFrame2Copy);
 
-        cv::imshow("imgFrame2Copy", imgFrame2Copy);
+        //cv::imshow("imgFrame2Copy", imgFrame2Copy);
 
         //cv::waitKey(0);                 // uncomment this line to go frame by frame for debugging
         
@@ -179,7 +179,7 @@ int main(void) {
 
         if ((capVideo.get(CV_CAP_PROP_POS_FRAMES) + 1) < capVideo.get(CV_CAP_PROP_FRAME_COUNT)) {
 
-            for(int i=0 ; i<2; ++i)
+            for(int i=0 ; i<10; ++i)
                 capVideo.read(imgFrame2);
         }
         else {
@@ -289,7 +289,7 @@ void drawAndShowContours(cv::Size imageSize, std::vector<std::vector<cv::Point> 
 
     cv::drawContours(image, contours, -1, SCALAR_WHITE, -1);
 
-    cv::imshow(strImageName, image);
+    //cv::imshow(strImageName, image);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -307,7 +307,7 @@ void drawAndShowContours(cv::Size imageSize, std::vector<Blob> blobs, std::strin
 
     cv::drawContours(image, contours, -1, SCALAR_WHITE, -1);
 
-    cv::imshow(strImageName, image);
+    //cv::imshow(strImageName, image);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
