@@ -167,7 +167,7 @@ int main(void) {
 
         drawCarCountOnImage(carCount, imgFrame2Copy);
 
-        //cv::imshow("imgFrame2Copy", imgFrame2Copy);
+        cv::imshow("imgFrame2Copy", imgFrame2Copy);
 
         //cv::waitKey(0);                 // uncomment this line to go frame by frame for debugging
         
