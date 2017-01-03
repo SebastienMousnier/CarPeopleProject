@@ -62,6 +62,11 @@ int main(void) {
     capVideo.read(imgFrame1);
     capVideo.read(imgFrame2);
 
+
+    /**
+     * @brief intHorizontalLinePosition
+     */
+
     int intHorizontalLinePosition = (int)std::round((double)imgFrame1.rows * 0.35);
 
     crossingLine[0].x = 0;
@@ -94,9 +99,17 @@ int main(void) {
 
         cv::absdiff(imgFrame1Copy, imgFrame2Copy, imgDifference);
 
+        // Segmente la différence entre les 2 images (binarise la différence)
         cv::threshold(imgDifference, imgThresh, 30, 255.0, CV_THRESH_BINARY);
 
-        //cv::imshow("imgThresh", imgThresh);
+        // affiche l'image binarisé brut (cad pas de transformation morphologique apliqué)
+        cv::imshow("imgThresh", imgThresh);
+
+
+        /**
+         *  Application des transformations morphologiqes afin de unifié les différents blobs qui composent un élément
+         *      -> la background substractor n'étant pas très précis, il segmente les objets mobiles en plusieurs blobs au lieu d'un seul
+         */
 
         // Plus l'élément est grand plus on élargit la zone de blanc
         cv::Mat structuringElement3x3 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
@@ -109,6 +122,14 @@ int main(void) {
             cv::dilate(imgThresh, imgThresh, structuringElement15x15);
             cv::erode(imgThresh, imgThresh, structuringElement15x15);
         }
+
+        // affiche l'image binarisé après les opérations morphologique (1 block blanc = 1 objet en mouvement)
+        cv::imshow("imgThresh2", imgThresh);
+
+
+        /**
+         *  Entour par un rectangle les objets en mouvement
+         */
 
         cv::Mat imgThreshCopy = imgThresh.clone();
 
@@ -125,6 +146,11 @@ int main(void) {
         }
 
         drawAndShowContours(imgThresh.size(), convexHulls, "imgConvexHulls");
+
+
+        /**
+          * Pour chaque différents blobs détectés, on test si il correspond à un objet en mouvement ou à du bruit
+          */
 
         for (auto &convexHull : convexHulls) {
             Blob possibleBlob(convexHull);
