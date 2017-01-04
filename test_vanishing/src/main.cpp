@@ -50,23 +50,24 @@ void drawCarCountOnImage(int &carCount, cv::Mat &imgFrame2Copy);
 int main( int _argc, char** _argv )
 {
 	// Images
-	Mat inputImg, inputImgGray;
+    Mat inputImg, inputImgGray;
 	Mat outputImg;
 
     Mat test_hough;
-    Mat output_test_hough;
+    Mat input_bw;
+    Mat output_canny;
+    Mat output_with_blobs;
 
-    test_hough = imread("test_hough.png");
-    output_test_hough = test_hough;
-
-	if( _argc != 2 )
+    //test_hough = imread("test_hough.png");
+/*
+    if( _argc != 2 )
 	{
 		cout << "Usage: ipm.exe <videofile>" << endl;
         return 1;
-	}
-
+    }
+*/
 	// Video
-	string videoFileName = _argv[1];	
+    string videoFileName = "ourVideo.mp4";
 	cv::VideoCapture video;
 	if( !video.open(videoFileName) )
 		return 1;
@@ -79,63 +80,46 @@ int main( int _argc, char** _argv )
     fourcc = static_cast<int>(video.get(CV_CAP_PROP_FOURCC));
 
 	cout << "Input video: (" << width << "x" << height << ") at " << fps << ", fourcc = " << fourcc << endl;
-	
-	// The 4-points at the input image	
-	vector<Point2f> origPoints;
-	origPoints.push_back( Point2f(0, height) );
-	origPoints.push_back( Point2f(width, height) );
-    origPoints.push_back( Point2f(width/2+30, 300) );
-    origPoints.push_back( Point2f(width/2-50, 300) );
 
-	// The 4-points correspondences in the destination image
-	vector<Point2f> dstPoints;
-	dstPoints.push_back( Point2f(0, height) );
-	dstPoints.push_back( Point2f(width, height) );
-	dstPoints.push_back( Point2f(width, 0) );
-	dstPoints.push_back( Point2f(0, 0) );
-		
-	// IPM object
-	IPM ipm( Size(width, height), Size(width, height), origPoints, dstPoints );
-	
+
 	// Main loop
     int frameNum = 1;
     video >> inputImg;
 
-    outputImg = inputImg;
+
+    inputImg.copyTo(outputImg);
+    inputImg.copyTo(output_with_blobs);
 
     char chCheckForEscKey = 0;
 
     // Color Conversion
-    if(test_hough.channels() == 3)
-        cvtColor(test_hough, test_hough, CV_BGR2GRAY);
+    if(outputImg.channels() == 3)
+        cvtColor(outputImg, input_bw, CV_BGR2GRAY);
     else
-        test_hough.copyTo(test_hough);
+        outputImg.copyTo(input_bw);
 
+    Canny(input_bw, output_canny,500,300);
 
-    //Apply thresholding
-    //cv::threshold(test_hough, test_hough, 100, 255, cv::THRESH_BINARY);
-
-    Canny(test_hough,test_hough,500,300);
-
-    imshow("Input", test_hough);
-
-    // Transforme l'image pour unifié les contour d'une même ligne détecté
+    // Transforme l'image pour unifier les contours d'une même ligne détectée
      cv::Mat structuringElement = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(2, 2));
 
      for (unsigned int i = 0; i < 2; i++) {
-         cv::dilate(test_hough, test_hough, structuringElement);
-         cv::dilate(test_hough, test_hough, structuringElement);
-         cv::erode(test_hough, test_hough, structuringElement);
+         cv::dilate(output_canny, output_canny, structuringElement);
+         cv::dilate(output_canny, output_canny, structuringElement);
+         cv::erode(output_canny, output_canny, structuringElement);
      }
 
-     imshow("Output", test_hough);
+     imshow("Output canny + morpho", output_canny);
 
 
      std::vector<std::vector<cv::Point> > contours;
 
-     cv::findContours(test_hough, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+     Mat tmp_contour;  // besoin d'une copie car finContours() écrase la matrice
+     output_canny.copyTo(tmp_contour);
 
-     drawAndShowContours(test_hough.size(), contours, "imgContours");
+     cv::findContours(tmp_contour, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
+     drawAndShowContours(output_canny.size(), contours, "imgContours");
 
      std::vector<std::vector<cv::Point> > convexHulls(contours.size());
 
@@ -143,11 +127,11 @@ int main( int _argc, char** _argv )
          cv::convexHull(contours[i], convexHulls[i]);
      }
 
-     drawAndShowContours(test_hough.size(), convexHulls, "imgConvexHulls");
+     drawAndShowContours(output_canny.size(), convexHulls, "imgConvexHulls");
 
 
      /**
-       * Pour chaque différents blobs détectés, on test si il correspond à un objet en mouvement ou à du bruit
+       * Pour chaque différents blobs détectés, on test si il correspond à une ligne ou pas ( en fonction de l'espace occupé par le blob blanc dans le rectabgle)
        */
 
      std::vector<Blob> currentFrameBlobs;
@@ -156,18 +140,19 @@ int main( int _argc, char** _argv )
      for (auto &convexHull : convexHulls) {
          Blob possibleBlob(convexHull);
 
-         if ((cv::contourArea(possibleBlob.currentContour) / (double)possibleBlob.currentBoundingRect.area()) < 0.50     ){
+         if ((cv::contourArea(possibleBlob.currentContour) / (double)possibleBlob.currentBoundingRect.area()) < 0.30     ){
             currentFrameBlobs.push_back(possibleBlob);
          }
      }
 
      std::vector<Blob> blobs(currentFrameBlobs);
 
-     drawAndShowContours(test_hough.size(), blobs, "imgBlobs");
-
-     //drawBlobInfoOnImage(blobs, output_test_hough);
+     drawAndShowContours(output_canny.size(), blobs, "imgBlobs");
 
 
+     /**
+      * On récupere les 2 plus grandes lignes (celles qui ont la plus grande hauteur) afin de les utiliser pour l'homographie)
+      */
      Blob line1(blobs.at(0));
      Blob line2(blobs.at(1));
      for (Blob &blob : blobs)
@@ -182,17 +167,102 @@ int main( int _argc, char** _argv )
         }
      }
 
-  //  blobs.empty();
-  //  blobs.push_back(line1);
-  //  blobs.push_back(line2);
-    drawBlobInfoOnImage(blobs, output_test_hough);
+    blobs.clear();
+    blobs.push_back(line1);
+    blobs.push_back(line2);
+    drawBlobInfoOnImage(blobs, output_with_blobs);
 
-    imshow("Output 2", output_test_hough);
+    /**
+      * Recherche des 2 lignes de fuite
+      */
 
+    cv::Point center1, center2;
+    center1 = line1.centerPositions.back();
+    center2 = line2.centerPositions.back();
+
+    cv::Point high_corner1_left, high_corner2_left;
+
+    high_corner1_left.x = center1.x - line1.currentBoundingRect.width /2; high_corner1_left.y = center1.y - line1.currentBoundingRect.height /2;
+
+    high_corner2_left.x = center2.x - line2.currentBoundingRect.width /2; high_corner2_left.y = center2.y + line2.currentBoundingRect.height /2;
+
+    ///Stockage coeff dir
+    float coef1 = float(line1.currentBoundingRect.width )/ float(line1.currentBoundingRect.height); // Calcul en valeur absolue avec la bounding box
+    float coef2 = float(line2.currentBoundingRect.width) / float(line2.currentBoundingRect.height);
+
+    // si le coin haut gauche est noir, on passe le coeff en négatif
+    std::cout<< "output_canny.at<uchar>(high_corner1_left)= "<< int(output_canny.at<uchar>(high_corner1_left))<< std::endl;
+    std::cout<< "output_canny.at<uchar>(high_corner2_left)= "<< int(output_canny.at<uchar>(high_corner2_left))<< std::endl;
+    if(output_canny.at<uchar>(high_corner1_left) == 0)
+    {
+        std::cout<< "yesssss"<< std::endl;
+        coef1 *= -1.0;
+    }
+    if(output_canny.at<uchar>(high_corner2_left) == 0)
+    {
+        std::cout<< "yesssss222"<< std::endl;
+        coef2 *= -1.0;
+    }
+
+    // Choix côté
+    if(coef1 > 0 && coef2 < 0)
+    {
+        float tmp = coef1;
+        coef1 = coef2;
+        coef2 = tmp;
+    }
+    else if (coef1 * coef2 > 0)
+    {
+        if (coef1 < coef2)
+        {
+            float tmp = coef1;
+            coef1 = coef2;
+            coef2 = tmp;
+        }
+    }
+
+    Point2f orig_left(0, height);
+    Point2f point_left(500, int (500*coef1));
+
+    Point2f orig_right(width, height);
+    Point2f point_right(width-500, int (coef2*(width - 500)));
+
+    std::cout<< "coef1= "<< coef1<< "  coef2= "<< coef2<< std::endl;
+    std::cout<< "int (coef2*(width - 500))= "<< int (coef2*(width - 500))<< std::endl;
+  //  std::cout<< "coef1= "<< coef1<< "  coef2= "<< coef2<< std::endl;
+
+    /**
+      * Application de l'homographie
+      */
+    // The 4-points at the input image
+    vector<Point2f> origPoints;
+
+    origPoints.push_back( orig_left );
+    origPoints.push_back( orig_right );
+    origPoints.push_back( point_right );
+    origPoints.push_back( point_left );
+
+    // The 4-points correspondences in the destination image
+    vector<Point2f> dstPoints;
+    dstPoints.push_back( Point2f(0, height) );
+    dstPoints.push_back( Point2f(width, height) );
+    dstPoints.push_back( Point2f(width, 0) );
+    dstPoints.push_back( Point2f(0, 0) );
+
+    // IPM object
+    IPM ipm( Size(width, height), Size(width, height), origPoints, dstPoints );
+
+    ipm.applyHomography( inputImg, outputImg );
+
+    imshow("Output homographie", outputImg);
+
+    ipm.drawPoints(origPoints, output_with_blobs );
+
+    imshow("Input blobs + ligne de fuite", output_with_blobs);
 
     while (video.isOpened() && chCheckForEscKey != 27)
-    {/*
-		printf("FRAME #%6d ", frameNum);
+    {
+/*		printf("FRAME #%6d ", frameNum);
 		fflush(stdout);
 		frameNum++;
 
@@ -240,19 +310,19 @@ int main( int _argc, char** _argv )
              Point pt2(cvRound(x0 - 1000 * (-b)),
                        cvRound(y0 - 1000 * (a)) );
 
-             clipLine(output_test_hough.size(), pt1, pt2);
+             clipLine(output_with_blobs.size(), pt1, pt2);
 
 
-             if(!output_test_hough.empty())
-                 line(output_test_hough,pt1,pt2,Scalar(0,0,255),1,8);
+             if(!output_with_blobs.empty())
+                 line(output_with_blobs,pt1,pt2,Scalar(0,0,255),1,8);
 
-             imshow("Output",output_test_hough);
+             imshow("Output",output_with_blobs);
              imshow("Input",test_hough);
              resizeWindow("Input",300,300);
 
          }
 
-*/
+
          /*ipm.drawPoints(origPoints, inputImg );
 
 
@@ -260,11 +330,38 @@ int main( int _argc, char** _argv )
 		 imshow("Input", inputImg);
          imshow("Output", outputImg);*/
         // imshow("Input",inputImgGray);
-         chCheckForEscKey = cv::waitKey(1);
+        chCheckForEscKey = cv::waitKey(1);
     }
 
 	return 0;	
 }
+
+/**
+  * Applicatione de l'homographie
+  */
+/*
+// The 4-points at the input image
+vector<Point2f> origPoints;
+origPoints.push_back( Point2f(0, height) );
+origPoints.push_back( Point2f(width, height) );
+origPoints.push_back( Point2f(width/2+30, 300) );
+origPoints.push_back( Point2f(width/2-50, 300) );
+
+// The 4-points correspondences in the destination image
+vector<Point2f> dstPoints;
+dstPoints.push_back( Point2f(0, height) );
+dstPoints.push_back( Point2f(width, height) );
+dstPoints.push_back( Point2f(width, 0) );
+dstPoints.push_back( Point2f(0, 0) );
+
+// IPM object
+IPM ipm( Size(width, height), Size(width, height), origPoints, dstPoints );
+
+ipm.applyHomography( test_hough, outputImg );
+*/
+
+
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void matchCurrentFrameBlobsToExistingBlobs(std::vector<Blob> &existingBlobs, std::vector<Blob> &currentFrameBlobs) {
