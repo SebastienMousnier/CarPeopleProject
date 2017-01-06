@@ -29,6 +29,7 @@ void drawAndShowContours(cv::Size imageSize, std::vector<Blob> blobs, std::strin
 bool checkIfBlobsCrossedTheLine(std::vector<Blob> &blobs, int &intHorizontalLinePosition, int &carCount);
 void drawBlobInfoOnImage(std::vector<Blob> &blobs, cv::Mat &imgFrame2Copy);
 void drawCarCountOnImage(int &carCount, cv::Mat &imgFrame2Copy);
+IPM createHomography(cv::Mat inputImg);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 int main(void) {
@@ -37,6 +38,7 @@ int main(void) {
 
     cv::Mat imgFrame1;
     cv::Mat imgFrame2;
+    cv::Mat outputImg;
 
     std::vector<Blob> blobs;
 
@@ -46,7 +48,7 @@ int main(void) {
 
     //capVideo.open("CarsDrivingUnderBridge.mp4");
 
-    capVideo.open("ourVideo.mp4");
+    capVideo.open("bvd11novembre.mp4");
 
     if (!capVideo.isOpened()) {                                                 // if unable to open video file
         std::cout << "error reading video file" << std::endl << std::endl;      // show error message
@@ -65,7 +67,7 @@ int main(void) {
 
 
     /**
-     * @brief intHorizontalLinePosition
+     * @brief intHorizontalLinePosition: creation de la ligne horizontal qui comptera les voitures
      */
 
     int intHorizontalLinePosition = (int)std::round((double)imgFrame1.rows * 0.35);
@@ -81,6 +83,10 @@ int main(void) {
     bool blnFirstFrame = true;
 
     int frameCount = 2;
+
+
+    imgFrame1.copyTo(outputImg);
+    IPM ipm = createHomography( outputImg);
 
     while (capVideo.isOpened() && chCheckForEscKey != 27) {
 
@@ -100,6 +106,8 @@ int main(void) {
 
         cv::absdiff(imgFrame1Copy, imgFrame2Copy, imgDifference);
 
+        ipm.applyHomography( imgDifference, imgDifference );
+
         // Segmente la différence entre les 2 images (binarise la différence)
         cv::threshold(imgDifference, imgThresh, 30, 255.0, CV_THRESH_BINARY);
 
@@ -118,10 +126,12 @@ int main(void) {
         cv::Mat structuringElement7x7 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 7));
         cv::Mat structuringElement15x15 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(15, 15));
 
+        cv::Mat structuringElement = structuringElement7x7;
+
         for (unsigned int i = 0; i < 2; i++) {
-            cv::dilate(imgThresh, imgThresh, structuringElement15x15);
-            cv::dilate(imgThresh, imgThresh, structuringElement15x15);
-            cv::erode(imgThresh, imgThresh, structuringElement15x15);
+            cv::dilate(imgThresh, imgThresh, structuringElement);
+            cv::dilate(imgThresh, imgThresh, structuringElement);
+            cv::erode(imgThresh, imgThresh, structuringElement);
         }
 
         // affiche l'image binarisé après les opérations morphologique (1 block blanc = 1 objet en mouvement)
@@ -132,6 +142,7 @@ int main(void) {
          *  Entour par un rectangle les objets en mouvement
          */
 
+        // besoin d'une copie car finContours() écrase la matrice
         cv::Mat imgThreshCopy = imgThresh.clone();
 
         std::vector<std::vector<cv::Point> > contours;
@@ -181,9 +192,11 @@ int main(void) {
 
         imgFrame2Copy = imgFrame2.clone();          // get another copy of frame 2 since we changed the previous frame 2 copy in the processing above
 
-        drawBlobInfoOnImage(blobs, imgFrame2Copy);
-
         bool blnAtLeastOneBlobCrossedTheLine = checkIfBlobsCrossedTheLine(blobs, intHorizontalLinePosition, carCount);
+
+        /// affiche les informations sur l'image de départ sans homographie
+        /*
+        drawBlobInfoOnImage(blobs, imgFrame2Copy);
 
         if (blnAtLeastOneBlobCrossedTheLine == true) {
             cv::line(imgFrame2Copy, crossingLine[0], crossingLine[1], SCALAR_GREEN, 2);
@@ -191,10 +204,30 @@ int main(void) {
         else {
             cv::line(imgFrame2Copy, crossingLine[0], crossingLine[1], SCALAR_RED, 2);
         }
-
         drawCarCountOnImage(carCount, imgFrame2Copy);
 
         cv::imshow("imgFrame2Copy", imgFrame2Copy);
+*/
+
+        /// affiche les informations sur l'image de départ après homographie
+
+        cv::Mat outputImg_homography_blobs = imgFrame2Copy.clone();
+        ipm.applyHomography( imgFrame2Copy, outputImg_homography_blobs );
+
+        drawBlobInfoOnImage(blobs, outputImg_homography_blobs);
+
+        if (blnAtLeastOneBlobCrossedTheLine == true) {
+            cv::line(outputImg_homography_blobs, crossingLine[0], crossingLine[1], SCALAR_GREEN, 2);
+        }
+        else {
+            cv::line(outputImg_homography_blobs, crossingLine[0], crossingLine[1], SCALAR_RED, 2);
+        }
+
+        drawCarCountOnImage(carCount, outputImg_homography_blobs);
+
+        cv::imshow("outputImg_homography_blobs", outputImg_homography_blobs);
+
+
 
         //cv::waitKey(0);                 // uncomment this line to go frame by frame for debugging
         
@@ -206,7 +239,7 @@ int main(void) {
 
         if ((capVideo.get(CV_CAP_PROP_POS_FRAMES) + 1) < capVideo.get(CV_CAP_PROP_FRAME_COUNT)) {
 
-            for(int i=0 ; i<10; ++i)
+            for(int i=0 ; i<5; ++i)
                 capVideo.read(imgFrame2);
         }
         else {
@@ -226,6 +259,206 @@ int main(void) {
 
     return(0);
 }
+
+/// Fonction pour récupérer les paramètres de l'homographie
+IPM createHomography(cv::Mat inputImg)
+{
+
+    cv::Mat input_bw;
+    cv::Mat outputImg;
+    cv::Mat output_canny;
+    cv::Mat output_with_blobs;
+
+    inputImg.copyTo(output_with_blobs);
+
+    int width = 0, height = 0;
+    width = inputImg.cols;
+    height = inputImg.rows;
+
+
+    // Color Conversion
+    if(inputImg.channels() == 3)
+        cvtColor(inputImg, input_bw, CV_BGR2GRAY);
+    else
+        inputImg.copyTo(input_bw);
+
+    Canny(input_bw, output_canny,500,300);
+
+    // Transforme l'image pour unifier les contours d'une même ligne détectée
+     cv::Mat structuringElement = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(2, 2));
+
+     for (unsigned int i = 0; i < 2; i++) {
+         cv::dilate(output_canny, output_canny, structuringElement);
+         cv::dilate(output_canny, output_canny, structuringElement);
+         cv::erode(output_canny, output_canny, structuringElement);
+     }
+
+     std::vector<std::vector<cv::Point> > contours;
+
+     cv::Mat tmp_contour;  // besoin d'une copie car finContours() écrase la matrice
+     output_canny.copyTo(tmp_contour);
+
+     cv::findContours(tmp_contour, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
+     drawAndShowContours(output_canny.size(), contours, "imgContours");
+
+     std::vector<std::vector<cv::Point> > convexHulls(contours.size());
+
+     for (unsigned int i = 0; i < contours.size(); i++) {
+         cv::convexHull(contours[i], convexHulls[i]);
+     }
+
+     drawAndShowContours(output_canny.size(), convexHulls, "imgConvexHulls");
+
+
+     /**
+       * Pour chaque différents blobs détectés, on test si il correspond à une ligne ou pas ( en fonction de l'espace occupé par le blob blanc dans le rectangle)
+       */
+
+     std::vector<Blob> currentFrameBlobs;
+
+     // detecte les lignes
+     for (auto &convexHull : convexHulls) {
+         Blob possibleBlob(convexHull);
+
+         if ((cv::contourArea(possibleBlob.currentContour) / (double)possibleBlob.currentBoundingRect.area()) < 0.30     ){
+            currentFrameBlobs.push_back(possibleBlob);
+         }
+     }
+
+     std::vector<Blob> blobs(currentFrameBlobs);
+
+     drawAndShowContours(output_canny.size(), blobs, "imgBlobs");
+
+     /**
+      * On récupere les 2 plus grandes lignes (celles qui ont la plus grande hauteur) afin de les utiliser pour l'homographie)
+      */
+     Blob line1(blobs.at(0));
+     Blob line2(blobs.at(1));
+     for (Blob &blob : blobs)
+     {
+        if(blob.currentBoundingRect.height > line1.currentBoundingRect.height)
+        {
+            // On enregistre la nouvelle ligne en ecrasent la plus petite entre line1 et line2
+            if (line2.currentBoundingRect.height > line1.currentBoundingRect.height)
+                line1 = blob;
+            else
+                line2 = blob;
+        }
+        else if (blob.currentBoundingRect.height > line2.currentBoundingRect.height)
+        {
+            if (line2.currentBoundingRect.height > line1.currentBoundingRect.height)
+                line1 = blob;
+            else
+                line2 = blob;
+            line2 = blob;
+        }
+     }
+
+    // On vide blobs, et on le remplit avec les 2 meilleures lignes de fuite trouvées
+    blobs.clear();
+    blobs.push_back(line1);
+    blobs.push_back(line2);
+    drawBlobInfoOnImage(blobs, output_with_blobs);
+
+    /**
+      * Recherche des 2 lignes de fuite
+      */
+
+    cv::Point center1, center2;
+    center1 = line1.centerPositions.back();
+    center2 = line2.centerPositions.back();
+
+    cv::Point high_corner1_left, high_corner2_left;
+    high_corner1_left.x = center1.x - line1.currentBoundingRect.width /2; high_corner1_left.y = center1.y - line1.currentBoundingRect.height /2;
+    high_corner2_left.x = center2.x - line2.currentBoundingRect.width /2; high_corner2_left.y = center2.y - line2.currentBoundingRect.height /2;
+
+    ///Stockage coeff dir
+    float coef1 = float(line1.currentBoundingRect.height )/ float(line1.currentBoundingRect.width); // Calcul en valeur absolue avec la bounding box
+    float coef2 = float(line2.currentBoundingRect.height) / float(line2.currentBoundingRect.width);
+
+    // si le coin haut gauche est noir, on passe le coeff en négatif
+    if(output_canny.at<uchar>(high_corner1_left) == 0)
+    {
+        coef1 *= -1.0;
+    }
+    if(output_canny.at<uchar>(high_corner2_left) == 0)
+    {
+        coef2 *= -1.0;
+    }
+
+    // Choix côté
+    if(coef1 > 0 && coef2 < 0)
+    {
+        float tmp = coef1;
+        coef1 = coef2;
+        coef2 = tmp;
+    }
+    else if (coef1 * coef2 > 0)
+    {
+        if (coef1 < coef2)
+        {
+            float tmp = coef1;
+            coef1 = coef2;
+            coef2 = tmp;
+        }
+    }
+
+    const unsigned int ecart = 450;
+
+    cv::Point2f orig_left(0, height);
+    cv::Point2f point_left(width/2 - ecart, int (coef1 * (width/2 - ecart)+ height));
+
+    cv::Point2f orig_right(width, height);
+    cv::Point2f point_right(width/2 + ecart, int (coef1 * (width/2 - ecart)+ height));
+
+
+    /// test resolution de l'equation
+
+    point_left.x = (coef1*orig_left.x - coef2*orig_right.x + orig_right.y - orig_left.y + coef2 * ecart) / (coef1 - coef2);
+    point_right.x = ecart + point_left.x;
+    point_left.y = coef1 * (point_left.x - orig_left.x) + orig_left.y;
+    point_right.y = coef2 * (point_right.x - orig_right.x) + orig_left.y;   // should have point_right.y == point_left.y
+
+    /**
+      * Application de l'homographie
+      */
+    // The 4-points at the input image
+    std::vector<cv::Point2f> origPoints;
+
+/** Point placé manuellement, bon
+    origPoints.push_back( cv::Point2f(0, height) );
+    origPoints.push_back( cv::Point2f(width, height) );
+    origPoints.push_back( cv::Point2f(width/2+30, 200) );
+    origPoints.push_back( cv::Point2f(width/2-50, 200) );
+*/
+
+    origPoints.push_back( orig_left );
+    origPoints.push_back( orig_right );
+    origPoints.push_back( point_right );
+    origPoints.push_back( point_left );
+
+    // The 4-points correspondences in the destination image
+    std::vector<cv::Point2f> dstPoints;
+    dstPoints.push_back( cv::Point2f(0, height) );
+    dstPoints.push_back( cv::Point2f(width, height) );
+    dstPoints.push_back( cv::Point2f(width, 0) );
+    dstPoints.push_back( cv::Point2f(0, 0) );
+
+    // IPM object
+    IPM ipm( cv::Size(width, height), cv::Size(width, height), origPoints, dstPoints );
+
+    ipm.applyHomography( inputImg, outputImg );
+
+    ipm.drawPoints(origPoints, output_with_blobs );
+
+    imshow("ligne de fuite pour l'homographie", output_with_blobs);
+
+    return ipm;
+}
+
+
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void matchCurrentFrameBlobsToExistingBlobs(std::vector<Blob> &existingBlobs, std::vector<Blob> &currentFrameBlobs) {
