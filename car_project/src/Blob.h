@@ -30,6 +30,7 @@ public:
 
     // function prototypes ////////////////////////////////////////////////////////////////////////
     Blob(std::vector<cv::Point> _contour);
+   // Blob(const &Blob);
     void predictNextPosition(void);
 
 };

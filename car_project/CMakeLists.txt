@@ -7,13 +7,8 @@ cmake_minimum_required(VERSION 2.6)
 
 project(pgm)
 
-FIND_PACKAGE(Qt4 REQUIRED)
-FIND_PACKAGE(OpenGL REQUIRED)
-set(QT_USE_OPENGL TRUE)
 find_package( OpenCV REQUIRED )
 
-
-INCLUDE(${QT_USE_FILE})
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
@@ -35,4 +30,4 @@ add_executable(
 )
 
 
-TARGET_LINK_LIBRARIES(pgm -lm -ldl -lGLEW ${OPENGL_LIBRARIES} ${QT_LIBRARIES} ${QT_GL_LIBRARIES} ${QT_QTOPENGL_LIBRARY} ${OpenCV_LIBS})
+TARGET_LINK_LIBRARIES(pgm -lm -ldl -lGLEW ${OpenCV_LIBS})

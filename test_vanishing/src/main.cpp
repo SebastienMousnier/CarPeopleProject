@@ -44,7 +44,7 @@ void drawAndShowContours(cv::Size imageSize, std::vector<Blob> blobs, std::strin
 bool checkIfBlobsCrossedTheLine(std::vector<Blob> &blobs, int &intHorizontalLinePosition, int &carCount);
 void drawBlobInfoOnImage(std::vector<Blob> &blobs, cv::Mat &imgFrame2Copy);
 void drawCarCountOnImage(int &carCount, cv::Mat &imgFrame2Copy);
-
+IPM createHomography(Mat inputImg);
 
 
 int main( int _argc, char** _argv )
@@ -53,21 +53,13 @@ int main( int _argc, char** _argv )
     Mat inputImg, inputImgGray;
 	Mat outputImg;
 
-    Mat test_hough;
     Mat input_bw;
     Mat output_canny;
     Mat output_with_blobs;
 
-    //test_hough = imread("test_hough.png");
-/*
-    if( _argc != 2 )
-	{
-		cout << "Usage: ipm.exe <videofile>" << endl;
-        return 1;
-    }
-*/
+
 	// Video
-    string videoFileName = "ourVideo.mp4";
+    string videoFileName = "bvd11novembre.mp4";
 	cv::VideoCapture video;
 	if( !video.open(videoFileName) )
 		return 1;
@@ -81,22 +73,56 @@ int main( int _argc, char** _argv )
 
 	cout << "Input video: (" << width << "x" << height << ") at " << fps << ", fourcc = " << fourcc << endl;
 
-
-	// Main loop
-    int frameNum = 1;
+    // Main loop
     video >> inputImg;
-
 
     inputImg.copyTo(outputImg);
     inputImg.copyTo(output_with_blobs);
 
     char chCheckForEscKey = 0;
 
+
+    IPM ipm = createHomography( outputImg);
+
+
+    while (video.isOpened() && chCheckForEscKey != 27)
+    {
+
+		// Get current image		
+        video >> inputImg;
+
+		if( inputImg.empty() )
+			break;
+
+        ipm.applyHomography( inputImg, outputImg );
+
+        imshow("Output final", outputImg);
+
+        chCheckForEscKey = cv::waitKey(1);
+    }
+
+	return 0;	
+}
+
+IPM createHomography(Mat inputImg)
+{
+
+    Mat input_bw;
+    Mat outputImg;
+    Mat output_canny;
+    Mat output_with_blobs;
+
+    inputImg.copyTo(output_with_blobs);
+
+    int width = 0, height = 0;
+    width = inputImg.cols;
+    height = inputImg.rows;
+
     // Color Conversion
-    if(outputImg.channels() == 3)
-        cvtColor(outputImg, input_bw, CV_BGR2GRAY);
+    if(inputImg.channels() == 3)
+        cvtColor(inputImg, input_bw, CV_BGR2GRAY);
     else
-        outputImg.copyTo(input_bw);
+        inputImg.copyTo(input_bw);
 
     Canny(input_bw, output_canny,500,300);
 
@@ -108,9 +134,6 @@ int main( int _argc, char** _argv )
          cv::dilate(output_canny, output_canny, structuringElement);
          cv::erode(output_canny, output_canny, structuringElement);
      }
-
-     imshow("Output canny + morpho", output_canny);
-
 
      std::vector<std::vector<cv::Point> > contours;
 
@@ -131,7 +154,7 @@ int main( int _argc, char** _argv )
 
 
      /**
-       * Pour chaque différents blobs détectés, on test si il correspond à une ligne ou pas ( en fonction de l'espace occupé par le blob blanc dans le rectabgle)
+       * Pour chaque différents blobs détectés, on test si il correspond à une ligne ou pas ( en fonction de l'espace occupé par le blob blanc dans le rectangle)
        */
 
      std::vector<Blob> currentFrameBlobs;
@@ -149,7 +172,6 @@ int main( int _argc, char** _argv )
 
      drawAndShowContours(output_canny.size(), blobs, "imgBlobs");
 
-
      /**
       * On récupere les 2 plus grandes lignes (celles qui ont la plus grande hauteur) afin de les utiliser pour l'homographie)
       */
@@ -159,14 +181,23 @@ int main( int _argc, char** _argv )
      {
         if(blob.currentBoundingRect.height > line1.currentBoundingRect.height)
         {
-            line1 = blob;
+            // On enregistre la nouvelle ligne en ecrasent la plus petite entre line1 et line2
+            if (line2.currentBoundingRect.height > line1.currentBoundingRect.height)
+                line1 = blob;
+            else
+                line2 = blob;
         }
         else if (blob.currentBoundingRect.height > line2.currentBoundingRect.height)
         {
+            if (line2.currentBoundingRect.height > line1.currentBoundingRect.height)
+                line1 = blob;
+            else
+                line2 = blob;
             line2 = blob;
         }
      }
 
+    // On vide blobs, et on le remplit avec les 2 meilleures lignes de fuite trouvées
     blobs.clear();
     blobs.push_back(line1);
     blobs.push_back(line2);
@@ -181,26 +212,20 @@ int main( int _argc, char** _argv )
     center2 = line2.centerPositions.back();
 
     cv::Point high_corner1_left, high_corner2_left;
-
     high_corner1_left.x = center1.x - line1.currentBoundingRect.width /2; high_corner1_left.y = center1.y - line1.currentBoundingRect.height /2;
-
-    high_corner2_left.x = center2.x - line2.currentBoundingRect.width /2; high_corner2_left.y = center2.y + line2.currentBoundingRect.height /2;
+    high_corner2_left.x = center2.x - line2.currentBoundingRect.width /2; high_corner2_left.y = center2.y - line2.currentBoundingRect.height /2;
 
     ///Stockage coeff dir
-    float coef1 = float(line1.currentBoundingRect.width )/ float(line1.currentBoundingRect.height); // Calcul en valeur absolue avec la bounding box
-    float coef2 = float(line2.currentBoundingRect.width) / float(line2.currentBoundingRect.height);
+    float coef1 = float(line1.currentBoundingRect.height )/ float(line1.currentBoundingRect.width); // Calcul en valeur absolue avec la bounding box
+    float coef2 = float(line2.currentBoundingRect.height) / float(line2.currentBoundingRect.width);
 
     // si le coin haut gauche est noir, on passe le coeff en négatif
-    std::cout<< "output_canny.at<uchar>(high_corner1_left)= "<< int(output_canny.at<uchar>(high_corner1_left))<< std::endl;
-    std::cout<< "output_canny.at<uchar>(high_corner2_left)= "<< int(output_canny.at<uchar>(high_corner2_left))<< std::endl;
     if(output_canny.at<uchar>(high_corner1_left) == 0)
     {
-        std::cout<< "yesssss"<< std::endl;
         coef1 *= -1.0;
     }
     if(output_canny.at<uchar>(high_corner2_left) == 0)
     {
-        std::cout<< "yesssss222"<< std::endl;
         coef2 *= -1.0;
     }
 
@@ -221,21 +246,36 @@ int main( int _argc, char** _argv )
         }
     }
 
+    const unsigned int ecart = 500;
+
     Point2f orig_left(0, height);
-    Point2f point_left(500, int (500*coef1));
+    Point2f point_left(width/2 - ecart, int (coef1 * (width/2 - ecart)+ height));
 
     Point2f orig_right(width, height);
-    Point2f point_right(width-500, int (coef2*(width - 500)));
+    Point2f point_right(width/2 + ecart, int (coef1 * (width/2 - ecart)+ height));
 
     std::cout<< "coef1= "<< coef1<< "  coef2= "<< coef2<< std::endl;
-    std::cout<< "int (coef2*(width - 500))= "<< int (coef2*(width - 500))<< std::endl;
-  //  std::cout<< "coef1= "<< coef1<< "  coef2= "<< coef2<< std::endl;
+
+
+    /// test resolution de l'equation
+
+    point_left.x = (coef1*orig_left.x - coef2*orig_right.x + orig_right.y - orig_left.y + coef2 * ecart) / (coef1 - coef2);
+    point_right.x = ecart + point_left.x;
+    point_left.y = coef1 * (point_left.x - orig_left.x) + orig_left.y;
+    point_right.y = coef2 * (point_right.x - orig_right.x) + orig_left.y;   // should have point_right.y == point_left.y
 
     /**
       * Application de l'homographie
       */
     // The 4-points at the input image
     vector<Point2f> origPoints;
+
+/** Point placé manuellement, bon
+    origPoints.push_back( Point2f(0, height) );
+    origPoints.push_back( Point2f(width, height) );
+    origPoints.push_back( Point2f(width/2+30, 200) );
+    origPoints.push_back( Point2f(width/2-50, 200) );
+*/
 
     origPoints.push_back( orig_left );
     origPoints.push_back( orig_right );
@@ -254,113 +294,12 @@ int main( int _argc, char** _argv )
 
     ipm.applyHomography( inputImg, outputImg );
 
-    imshow("Output homographie", outputImg);
-
     ipm.drawPoints(origPoints, output_with_blobs );
 
     imshow("Input blobs + ligne de fuite", output_with_blobs);
 
-    while (video.isOpened() && chCheckForEscKey != 27)
-    {
-/*		printf("FRAME #%6d ", frameNum);
-		fflush(stdout);
-		frameNum++;
-
-		// Get current image		
-        video >> inputImg;
-
-		if( inputImg.empty() )
-			break;
-
-		 // Color Conversion
-		 if(inputImg.channels() == 3)		 
-			 cvtColor(inputImg, inputImgGray, CV_BGR2GRAY);				 		 
-		 else	 
-             inputImg.copyTo(inputImgGray);
-
-
-         Canny(inputImgGray,inputImgGray,600,300);
-
-		 // Process
-         clock_t begin = clock();
-         //ipm.applyHomography( inputImg, outputImg );
-		 clock_t end = clock();
-         double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-		 printf("%.2f (ms)\r", 1000*elapsed_secs);
-
-
-         vector<Vec2f> lines;
-        // imshow("Input",test_hough);
-         HoughLines(test_hough, lines, 1, M_PI/18, 281/7);
-
-     //    std::cout<< "lines.size = "<<lines.size()<<"  " <<  std::endl;
-
-
-         for (size_t i = 0; i < lines.size(); i++)
-         {
-             float rho = lines[i][0];
-             float theta = lines[i][1];
-
-             double a = cos(theta), b = sin(theta);
-             double x0 = a * rho, y0 = b * rho;
-
-             Point pt1(cvRound(x0 + 1000 * (-b)),
-                       cvRound(y0 + 1000 * (a)) );
-
-             Point pt2(cvRound(x0 - 1000 * (-b)),
-                       cvRound(y0 - 1000 * (a)) );
-
-             clipLine(output_with_blobs.size(), pt1, pt2);
-
-
-             if(!output_with_blobs.empty())
-                 line(output_with_blobs,pt1,pt2,Scalar(0,0,255),1,8);
-
-             imshow("Output",output_with_blobs);
-             imshow("Input",test_hough);
-             resizeWindow("Input",300,300);
-
-         }
-
-
-         /*ipm.drawPoints(origPoints, inputImg );
-
-
-		 // View		
-		 imshow("Input", inputImg);
-         imshow("Output", outputImg);*/
-        // imshow("Input",inputImgGray);
-        chCheckForEscKey = cv::waitKey(1);
-    }
-
-	return 0;	
+    return ipm;
 }
-
-/**
-  * Applicatione de l'homographie
-  */
-/*
-// The 4-points at the input image
-vector<Point2f> origPoints;
-origPoints.push_back( Point2f(0, height) );
-origPoints.push_back( Point2f(width, height) );
-origPoints.push_back( Point2f(width/2+30, 300) );
-origPoints.push_back( Point2f(width/2-50, 300) );
-
-// The 4-points correspondences in the destination image
-vector<Point2f> dstPoints;
-dstPoints.push_back( Point2f(0, height) );
-dstPoints.push_back( Point2f(width, height) );
-dstPoints.push_back( Point2f(width, 0) );
-dstPoints.push_back( Point2f(0, 0) );
-
-// IPM object
-IPM ipm( Size(width, height), Size(width, height), origPoints, dstPoints );
-
-ipm.applyHomography( test_hough, outputImg );
-*/
-
-
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

@@ -26,6 +26,16 @@ Blob::Blob(std::vector<cv::Point> _contour) {
     intNumOfConsecutiveFramesWithoutAMatch = 0;
 }
 
+
+/*Blob::Blob(Blob &blobCopy)
+/*    : currentContour(blobCopy.currentContour), currentBoundingRect(blobCopy.currentBoundingRect), currentContour(blobCopy.currentContour), currentContour(blobCopy.currentContour),
+      currentContour(blobCopy.currentContour), currentContour(blobCopy.currentContour), currentContour(blobCopy.currentContour), currentContour(blobCopy.currentContour),
+      currentContour(blobCopy.currentContour),
+{
+  //  this = blobCopy;
+}
+*/
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void Blob::predictNextPosition(void) {
 

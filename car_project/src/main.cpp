@@ -8,6 +8,7 @@
 //#include<conio.h>           // it may be necessary to change or remove this line if not using Windows
 
 #include "Blob.h"
+#include "IPM.h"
 
 #define SHOW_STEPS            // un-comment or comment this line to show steps or not
 
@@ -392,13 +393,3 @@ void drawCarCountOnImage(int &carCount, cv::Mat &imgFrame2Copy) {
     cv::putText(imgFrame2Copy, std::to_string(carCount), ptTextBottomLeftPosition, intFontFace, dblFontScale, SCALAR_GREEN, intFontThickness);
 
 }
-
-
-
-
-
-
-
-
-
-
