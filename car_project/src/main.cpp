@@ -30,6 +30,7 @@ bool checkIfBlobsCrossedTheLine(std::vector<Blob> &blobs, int &intHorizontalLine
 void drawBlobInfoOnImage(std::vector<Blob> &blobs, cv::Mat &imgFrame2Copy);
 void drawCarCountOnImage(int &carCount, cv::Mat &imgFrame2Copy);
 IPM createHomography(cv::Mat inputImg);
+void firstProcess(cv::Mat inputFrame1, cv::Mat inputFrame2,cv::Mat &outputThresh, IPM &ipm);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 int main(void) {
@@ -95,51 +96,13 @@ int main(void) {
         cv::Mat imgFrame1Copy = imgFrame1.clone();
         cv::Mat imgFrame2Copy = imgFrame2.clone();
 
-        cv::Mat imgDifference;
         cv::Mat imgThresh;
 
-        cv::cvtColor(imgFrame1Copy, imgFrame1Copy, CV_BGR2GRAY);
-        cv::cvtColor(imgFrame2Copy, imgFrame2Copy, CV_BGR2GRAY);
 
-        cv::GaussianBlur(imgFrame1Copy, imgFrame1Copy, cv::Size(5, 5), 0);
-        cv::GaussianBlur(imgFrame2Copy, imgFrame2Copy, cv::Size(5, 5), 0);
-
-        cv::absdiff(imgFrame1Copy, imgFrame2Copy, imgDifference);
-
-        ipm.applyHomography( imgDifference, imgDifference );
-
-        // Segmente la différence entre les 2 images (binarise la différence)
-        cv::threshold(imgDifference, imgThresh, 30, 255.0, CV_THRESH_BINARY);
-
-        // affiche l'image binarisé brut (cad pas de transformation morphologique apliqué)
-        cv::imshow("imgThresh", imgThresh);
-
+        firstProcess(imgFrame1Copy, imgFrame2Copy, imgThresh, ipm);
 
         /**
-         *  Application des transformations morphologiqes afin de unifié les différents blobs qui composent un élément
-         *      -> la background substractor n'étant pas très précis, il segmente les objets mobiles en plusieurs blobs au lieu d'un seul
-         */
-
-        // Plus l'élément est grand plus on élargit la zone de blanc
-        cv::Mat structuringElement3x3 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
-        cv::Mat structuringElement5x5 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
-        cv::Mat structuringElement7x7 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 7));
-        cv::Mat structuringElement15x15 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(15, 15));
-
-        cv::Mat structuringElement = structuringElement7x7;
-
-        for (unsigned int i = 0; i < 2; i++) {
-            cv::dilate(imgThresh, imgThresh, structuringElement);
-            cv::dilate(imgThresh, imgThresh, structuringElement);
-            cv::erode(imgThresh, imgThresh, structuringElement);
-        }
-
-        // affiche l'image binarisé après les opérations morphologique (1 block blanc = 1 objet en mouvement)
-        cv::imshow("imgThresh2", imgThresh);
-
-
-        /**
-         *  Entour par un rectangle les objets en mouvement
+         *  Entoure par un rectangle les objets en mouvement
          */
 
         // besoin d'une copie car finContours() écrase la matrice
@@ -258,6 +221,51 @@ int main(void) {
     // note that if the user did press esc, we don't need to hold the windows open, we can simply let the program end which will close the windows
 
     return(0);
+}
+
+/// Fonction de pré traitement de l'image
+void firstProcess(cv::Mat inputFrame1, cv::Mat inputFrame2, cv::Mat &outputThresh, IPM &ipm)
+{
+    cv::Mat imgDifference;
+
+    cv::cvtColor(inputFrame1, inputFrame1, CV_BGR2GRAY);
+    cv::cvtColor(inputFrame2, inputFrame2, CV_BGR2GRAY);
+
+    cv::GaussianBlur(inputFrame1, inputFrame1, cv::Size(5, 5), 0);
+    cv::GaussianBlur(inputFrame2, inputFrame2, cv::Size(5, 5), 0);
+
+    cv::absdiff(inputFrame1, inputFrame2, imgDifference);
+
+    ipm.applyHomography( imgDifference, imgDifference );
+
+    // Segmente la différence entre les 2 images (binarise la différence)
+    cv::threshold(imgDifference, outputThresh, 30, 255.0, CV_THRESH_BINARY);
+
+    // affiche l'image binarisé brut (cad pas de transformation morphologique apliqué)
+    cv::imshow("outputThresh", outputThresh);
+
+
+    /**
+     *  Application des transformations morphologiqes afin de unifié les différents blobs qui composent un élément
+     *      -> la background substractor n'étant pas très précis, il segmente les objets mobiles en plusieurs blobs au lieu d'un seul
+     */
+
+    // Plus l'élément est grand plus on élargit la zone de blanc
+    cv::Mat structuringElement3x3 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
+    cv::Mat structuringElement5x5 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
+    cv::Mat structuringElement7x7 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 7));
+    cv::Mat structuringElement15x15 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(15, 15));
+
+    cv::Mat structuringElement = structuringElement7x7;
+
+    for (unsigned int i = 0; i < 2; i++) {
+        cv::dilate(outputThresh, outputThresh, structuringElement);
+        cv::dilate(outputThresh, outputThresh, structuringElement);
+        cv::erode(outputThresh, outputThresh, structuringElement);
+    }
+
+    // affiche l'image binarisé après les opérations morphologique (1 block blanc = 1 objet en mouvement)
+    cv::imshow("outputThresh2", outputThresh);
 }
 
 /// Fonction pour récupérer les paramètres de l'homographie
