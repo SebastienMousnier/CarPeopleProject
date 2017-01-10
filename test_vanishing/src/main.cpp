@@ -246,23 +246,35 @@ IPM createHomography(Mat inputImg)
         }
     }
 
-    const unsigned int ecart = 500;
+    /**
+     * Recherche des 4 points pour l'homographie
+     *
+     */
+    /// Résolution de l'equation pour les points de départ
 
-    Point2f orig_left(0, height);
-    Point2f point_left(width/2 - ecart, int (coef1 * (width/2 - ecart)+ height));
+    // Ecart, parametre à ajuster en fonction de la video
+    const unsigned int ecart = 80;
 
-    Point2f orig_right(width, height);
-    Point2f point_right(width/2 + ecart, int (coef1 * (width/2 - ecart)+ height));
+    Point2f center_left(center1.x, center1.y);
+    Point2f center_right(center2.x, center2.y);
+
+    Point2f pt_left_down(center_left.x + (height - center_left.y) / coef1, height);
+   // Point2f pt_left_up(width/2 - ecart, int (coef1 * (width/2 - ecart) + height));
+    Point2f pt_left_up(0, 0);
+
+    Point2f pt_right_down(center_right.x + (height - center_right.y) / coef2, height);
+   // Point2f pt_right_up(width/2 + ecart, int (coef1 * (width/2 - ecart) + height));
+    Point2f pt_right_up(0, 0);
 
     std::cout<< "coef1= "<< coef1<< "  coef2= "<< coef2<< std::endl;
 
 
-    /// test resolution de l'equation
+    /// Resolution de l'equation point d'arrives
 
-    point_left.x = (coef1*orig_left.x - coef2*orig_right.x + orig_right.y - orig_left.y + coef2 * ecart) / (coef1 - coef2);
-    point_right.x = ecart + point_left.x;
-    point_left.y = coef1 * (point_left.x - orig_left.x) + orig_left.y;
-    point_right.y = coef2 * (point_right.x - orig_right.x) + orig_left.y;   // should have point_right.y == point_left.y
+    pt_left_up.x = (coef1*pt_left_down.x - coef2*pt_right_down.x + pt_right_down.y - pt_left_down.y + coef2 * ecart) / (coef1 - coef2);
+    pt_right_up.x = ecart + pt_left_up.x;
+    pt_left_up.y = coef1 * (pt_left_up.x - pt_left_down.x) + pt_left_down.y;
+    pt_right_up.y = coef2 * (pt_right_up.x - pt_right_down.x) + pt_left_down.y;   // should have pt_right_up.y == pt_left_up.y
 
     /**
       * Application de l'homographie
@@ -270,31 +282,36 @@ IPM createHomography(Mat inputImg)
     // The 4-points at the input image
     vector<Point2f> origPoints;
 
-/** Point placé manuellement, bon
-    origPoints.push_back( Point2f(0, height) );
-    origPoints.push_back( Point2f(width, height) );
-    origPoints.push_back( Point2f(width/2+30, 200) );
-    origPoints.push_back( Point2f(width/2-50, 200) );
+/*    // Point placé manuellement, bon
+    origPoints.push_back( Point2f(50, height) );
+    origPoints.push_back( Point2f(width-300, height) );
+    origPoints.push_back( Point2f(width/2 , 230) );
+    origPoints.push_back( Point2f(width/2 - 70, 230) );
 */
+  // Point trouvé par resolution d'equation
+    origPoints.push_back( pt_left_down );
+    origPoints.push_back( pt_right_down );
+    origPoints.push_back( pt_right_up );
+    origPoints.push_back( pt_left_up );
 
-    origPoints.push_back( orig_left );
-    origPoints.push_back( orig_right );
-    origPoints.push_back( point_right );
-    origPoints.push_back( point_left );
+    /////////////////
+
 
     // The 4-points correspondences in the destination image
     vector<Point2f> dstPoints;
-    dstPoints.push_back( Point2f(0, height) );
-    dstPoints.push_back( Point2f(width, height) );
-    dstPoints.push_back( Point2f(width, 0) );
-    dstPoints.push_back( Point2f(0, 0) );
+
+    dstPoints.push_back( Point2f(50, height) );
+    dstPoints.push_back( Point2f(width-300, height) );
+    dstPoints.push_back( Point2f(width-300, 0) );
+    dstPoints.push_back( Point2f(50, 0) );
 
     // IPM object
     IPM ipm( Size(width, height), Size(width, height), origPoints, dstPoints );
 
     ipm.applyHomography( inputImg, outputImg );
 
-    ipm.drawPoints(origPoints, output_with_blobs );
+    ipm.drawPoints(origPoints, output_with_blobs, 0 );
+    ipm.drawPoints(dstPoints, output_with_blobs, 1 );
 
     imshow("Input blobs + ligne de fuite", output_with_blobs);
 

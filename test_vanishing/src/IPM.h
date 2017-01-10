@@ -30,7 +30,7 @@ public:
 	void getPoints(std::vector<cv::Point2f>& _origPts, std::vector<cv::Point2f>& _ipmPts);
 
 	// Draw
-	void drawPoints( const std::vector<cv::Point2f>& _points, cv::Mat& _img ) const; 
+    void drawPoints(const std::vector<cv::Point2f>& _points, cv::Mat& _img , unsigned int couleur = 0) const;
 
 private:
 	void createMaps();

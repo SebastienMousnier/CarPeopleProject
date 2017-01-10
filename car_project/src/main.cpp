@@ -112,7 +112,7 @@ int main(void) {
         cv::threshold(imgDifference, imgThresh, 30, 255.0, CV_THRESH_BINARY);
 
         // affiche l'image binarisé brut (cad pas de transformation morphologique apliqué)
-        cv::imshow("imgThresh", imgThresh);
+      //  cv::imshow("imgThresh avant application des transformations morphologiques", imgThresh);
 
 
         /**
@@ -126,7 +126,7 @@ int main(void) {
         cv::Mat structuringElement7x7 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 7));
         cv::Mat structuringElement15x15 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(15, 15));
 
-        cv::Mat structuringElement = structuringElement7x7;
+        cv::Mat structuringElement = structuringElement15x15;
 
         for (unsigned int i = 0; i < 2; i++) {
             cv::dilate(imgThresh, imgThresh, structuringElement);
@@ -135,7 +135,7 @@ int main(void) {
         }
 
         // affiche l'image binarisé après les opérations morphologique (1 block blanc = 1 objet en mouvement)
-        cv::imshow("imgThresh2", imgThresh);
+        cv::imshow("imgThresh après application des transformations morphologiques", imgThresh);
 
 
         /**
@@ -404,39 +404,43 @@ IPM createHomography(cv::Mat inputImg)
         }
     }
 
-    const unsigned int ecart = 450;
+    /**
+     * Recherche des 4 points pour l'homographie
+     *
+     */
+    /// Résolution de l'equation pour les points de départ
 
-    cv::Point2f orig_left(0, height);
-    cv::Point2f point_left(width/2 - ecart, int (coef1 * (width/2 - ecart)+ height));
+    // Ecart, parametre à ajuster en fonction de la video
+    const unsigned int ecart = 80;
 
-    cv::Point2f orig_right(width, height);
-    cv::Point2f point_right(width/2 + ecart, int (coef1 * (width/2 - ecart)+ height));
+    cv::Point2f center_left(center1.x, center1.y);
+    cv::Point2f center_right(center2.x, center2.y);
 
+    cv::Point2f pt_left_down(center_left.x + (height - center_left.y) / coef1, height);
+    cv::Point2f pt_left_up(0, 0);
 
-    /// test resolution de l'equation
+    cv::Point2f pt_right_down(center_right.x + (height - center_right.y) / coef2, height);
+    cv::Point2f pt_right_up(0, 0);
 
-    point_left.x = (coef1*orig_left.x - coef2*orig_right.x + orig_right.y - orig_left.y + coef2 * ecart) / (coef1 - coef2);
-    point_right.x = ecart + point_left.x;
-    point_left.y = coef1 * (point_left.x - orig_left.x) + orig_left.y;
-    point_right.y = coef2 * (point_right.x - orig_right.x) + orig_left.y;   // should have point_right.y == point_left.y
+    /// Resolution de l'equation point d'arrives
+
+    pt_left_up.x = (coef1*pt_left_down.x - coef2*pt_right_down.x + pt_right_down.y - pt_left_down.y + coef2 * ecart) / (coef1 - coef2);
+    pt_right_up.x = ecart + pt_left_up.x;
+    pt_left_up.y = coef1 * (pt_left_up.x - pt_left_down.x) + pt_left_down.y;
+    pt_right_up.y = coef2 * (pt_right_up.x - pt_right_down.x) + pt_left_down.y;   // should have pt_right_up.y == pt_left_up.y
 
     /**
       * Application de l'homographie
       */
     // The 4-points at the input image
+
     std::vector<cv::Point2f> origPoints;
+    origPoints.push_back( pt_left_down );
+    origPoints.push_back( pt_right_down );
+    origPoints.push_back( pt_right_up );
+    origPoints.push_back( pt_left_up );
 
-/** Point placé manuellement, bon
-    origPoints.push_back( cv::Point2f(0, height) );
-    origPoints.push_back( cv::Point2f(width, height) );
-    origPoints.push_back( cv::Point2f(width/2+30, 200) );
-    origPoints.push_back( cv::Point2f(width/2-50, 200) );
-*/
-
-    origPoints.push_back( orig_left );
-    origPoints.push_back( orig_right );
-    origPoints.push_back( point_right );
-    origPoints.push_back( point_left );
+    /////////////////
 
     // The 4-points correspondences in the destination image
     std::vector<cv::Point2f> dstPoints;
