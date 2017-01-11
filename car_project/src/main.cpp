@@ -190,6 +190,8 @@ int main(void) {
         cv::imshow("outputImg_homography_blobs", outputImg_homography_blobs);
         cv::imshow("input Video", imgFrame1Copy);
 
+        cv::Mat tmp;
+        ipm.applyHomography( imgFrame2Copy, tmp );
 
 
         //cv::waitKey(0);                 // uncomment this line to go frame by frame for debugging
@@ -439,6 +441,7 @@ void firstProcess(cv::Mat inputFrame1, cv::Mat inputFrame2, cv::Mat &outputThres
 {
     cv::Mat imgDifference;
 
+
     cv::cvtColor(inputFrame1, inputFrame1, CV_BGR2GRAY);
     cv::cvtColor(inputFrame2, inputFrame2, CV_BGR2GRAY);
 
@@ -449,8 +452,10 @@ void firstProcess(cv::Mat inputFrame1, cv::Mat inputFrame2, cv::Mat &outputThres
 
     ipm.applyHomography( imgDifference, imgDifference );
 
+
     // Segmente la différence entre les 2 images (binarise la différence)
     cv::threshold(imgDifference, outputThresh, 30, 255.0, CV_THRESH_BINARY);
+
 
     // affiche l'image binarisé brut (cad pas de transformation morphologique apliqué)
     // cv::imshow("outputThresh before applying morphology", outputThresh);

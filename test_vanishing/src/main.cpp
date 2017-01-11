@@ -201,7 +201,7 @@ IPM createHomography(Mat inputImg)
     blobs.clear();
     blobs.push_back(line1);
     blobs.push_back(line2);
-    drawBlobInfoOnImage(blobs, output_with_blobs);
+  //  drawBlobInfoOnImage(blobs, output_with_blobs);
 
     /**
       * Recherche des 2 lignes de fuite
