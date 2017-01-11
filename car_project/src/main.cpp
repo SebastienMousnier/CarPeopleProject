@@ -71,7 +71,7 @@ int main(void) {
      * @brief intHorizontalLinePosition: creation de la ligne horizontal qui comptera les voitures
      */
 
-    int intHorizontalLinePosition = (int)std::round((double)imgFrame1.rows * 0.35);
+    int intHorizontalLinePosition = (int)std::round((double)imgFrame1.rows * 0.55);
 
     crossingLine[0].x = 0;
     crossingLine[0].y = intHorizontalLinePosition;
@@ -188,6 +188,7 @@ int main(void) {
         drawCarCountOnImage(carCount, outputImg_homography_blobs);
 
         cv::imshow("outputImg_homography_blobs", outputImg_homography_blobs);
+        cv::imshow("input Video", imgFrame1Copy);
 
 
 
@@ -222,51 +223,6 @@ int main(void) {
     return(0);
 }
 
-/// Fonction de pré traitement de l'image
-void firstProcess(cv::Mat inputFrame1, cv::Mat inputFrame2, cv::Mat &outputThresh, IPM &ipm)
-{
-    cv::Mat imgDifference;
-
-    cv::cvtColor(inputFrame1, inputFrame1, CV_BGR2GRAY);
-    cv::cvtColor(inputFrame2, inputFrame2, CV_BGR2GRAY);
-
-    cv::GaussianBlur(inputFrame1, inputFrame1, cv::Size(5, 5), 0);
-    cv::GaussianBlur(inputFrame2, inputFrame2, cv::Size(5, 5), 0);
-
-    cv::absdiff(inputFrame1, inputFrame2, imgDifference);
-
-    ipm.applyHomography( imgDifference, imgDifference );
-
-    // Segmente la différence entre les 2 images (binarise la différence)
-    cv::threshold(imgDifference, outputThresh, 30, 255.0, CV_THRESH_BINARY);
-
-    // affiche l'image binarisé brut (cad pas de transformation morphologique apliqué)
-    cv::imshow("outputThresh", outputThresh);
-
-
-    /**
-     *  Application des transformations morphologiqes afin de unifié les différents blobs qui composent un élément
-     *      -> la background substractor n'étant pas très précis, il segmente les objets mobiles en plusieurs blobs au lieu d'un seul
-     */
-
-    // Plus l'élément est grand plus on élargit la zone de blanc
-    cv::Mat structuringElement3x3 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
-    cv::Mat structuringElement5x5 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
-    cv::Mat structuringElement7x7 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 7));
-    cv::Mat structuringElement15x15 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(15, 15));
-
-    cv::Mat structuringElement = structuringElement7x7;
-
-    for (unsigned int i = 0; i < 2; i++) {
-        cv::dilate(outputThresh, outputThresh, structuringElement);
-        cv::dilate(outputThresh, outputThresh, structuringElement);
-        cv::erode(outputThresh, outputThresh, structuringElement);
-    }
-
-    // affiche l'image binarisé après les opérations morphologique (1 block blanc = 1 objet en mouvement)
-    cv::imshow("outputThresh2", outputThresh);
-}
-
 /// Fonction pour récupérer les paramètres de l'homographie
 IPM createHomography(cv::Mat inputImg)
 {
@@ -275,6 +231,9 @@ IPM createHomography(cv::Mat inputImg)
     cv::Mat outputImg;
     cv::Mat output_canny;
     cv::Mat output_with_blobs;
+
+    std::cout<<"major version= " << CV_MAJOR_VERSION << std::endl;
+    std::cout<<"major version= " << CV_MINOR_VERSION << std::endl;
 
     inputImg.copyTo(output_with_blobs);
 
@@ -451,17 +410,23 @@ IPM createHomography(cv::Mat inputImg)
 
     // The 4-points correspondences in the destination image
     std::vector<cv::Point2f> dstPoints;
-    dstPoints.push_back( cv::Point2f(0, height) );
-    dstPoints.push_back( cv::Point2f(width, height) );
-    dstPoints.push_back( cv::Point2f(width, 0) );
-    dstPoints.push_back( cv::Point2f(0, 0) );
+ /*   dstPoints.push_back( cv::Point2f(500, height) );
+    dstPoints.push_back( cv::Point2f(width-300, height) );
+    dstPoints.push_back( cv::Point2f(width-300, 0) );
+    dstPoints.push_back( cv::Point2f(500, 0) );*/
+
+    dstPoints.push_back( cv::Point2f((pt_left_down.x + pt_left_up.x)/2, height) );
+    dstPoints.push_back( cv::Point2f((pt_right_down.x + pt_right_up.x)/2, height) );
+    dstPoints.push_back( cv::Point2f((pt_right_down.x + pt_right_up.x)/2, 0) );
+    dstPoints.push_back( cv::Point2f((pt_left_down.x + pt_left_up.x)/2, 0) );
 
     // IPM object
     IPM ipm( cv::Size(width, height), cv::Size(width, height), origPoints, dstPoints );
 
     ipm.applyHomography( inputImg, outputImg );
 
-    ipm.drawPoints(origPoints, output_with_blobs );
+    ipm.drawPoints(origPoints, output_with_blobs, 0 );
+    ipm.drawPoints(dstPoints, output_with_blobs, 1 );
 
     imshow("ligne de fuite pour l'homographie", output_with_blobs);
 
@@ -469,6 +434,50 @@ IPM createHomography(cv::Mat inputImg)
 }
 
 
+/// Fonction de pré traitement de l'image
+void firstProcess(cv::Mat inputFrame1, cv::Mat inputFrame2, cv::Mat &outputThresh, IPM &ipm)
+{
+    cv::Mat imgDifference;
+
+    cv::cvtColor(inputFrame1, inputFrame1, CV_BGR2GRAY);
+    cv::cvtColor(inputFrame2, inputFrame2, CV_BGR2GRAY);
+
+    cv::GaussianBlur(inputFrame1, inputFrame1, cv::Size(5, 5), 0);
+    cv::GaussianBlur(inputFrame2, inputFrame2, cv::Size(5, 5), 0);
+
+    cv::absdiff(inputFrame1, inputFrame2, imgDifference);
+
+    ipm.applyHomography( imgDifference, imgDifference );
+
+    // Segmente la différence entre les 2 images (binarise la différence)
+    cv::threshold(imgDifference, outputThresh, 30, 255.0, CV_THRESH_BINARY);
+
+    // affiche l'image binarisé brut (cad pas de transformation morphologique apliqué)
+    // cv::imshow("outputThresh before applying morphology", outputThresh);
+
+
+    /**
+     *  Application des transformations morphologiqes afin de unifié les différents blobs qui composent un élément
+     *      -> la background substractor n'étant pas très précis, il segmente les objets mobiles en plusieurs blobs au lieu d'un seul
+     */
+
+    // Plus l'élément est grand plus on élargit la zone de blanc
+    cv::Mat structuringElement3x3 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
+    cv::Mat structuringElement5x5 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
+    cv::Mat structuringElement7x7 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 7));
+    cv::Mat structuringElement15x15 = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(15, 15));
+
+    cv::Mat structuringElement = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(10, 7));
+
+    for (unsigned int i = 0; i < 2; i++) {
+        cv::dilate(outputThresh, outputThresh, structuringElement);
+        cv::dilate(outputThresh, outputThresh, structuringElement);
+        cv::erode(outputThresh, outputThresh, structuringElement);
+    }
+
+    // affiche l'image binarisé après les opérations morphologique (1 block blanc = 1 objet en mouvement)
+    cv::imshow("outputThresh after applying morphology", outputThresh);
+}
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
