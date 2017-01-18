@@ -26,11 +26,13 @@ void addNewBlob(Blob &currentFrameBlob, std::vector<Blob> &existingBlobs);
 double distanceBetweenPoints(cv::Point point1, cv::Point point2);
 void drawAndShowContours(cv::Size imageSize, std::vector<std::vector<cv::Point> > contours, std::string strImageName);
 void drawAndShowContours(cv::Size imageSize, std::vector<Blob> blobs, std::string strImageName);
-bool checkIfBlobsCrossedTheLine(std::vector<Blob> &blobs, int &intHorizontalLinePosition, int &carCount);
+bool checkIfBlobsCrossedTheLine(std::vector<Blob> &blobs, std::vector<Blob> &blobs_crossed_line, int &intHorizontalLinePosition, int &carCount);
 void drawBlobInfoOnImage(std::vector<Blob> &blobs, cv::Mat &imgFrame2Copy);
 void drawCarCountOnImage(int &carCount, cv::Mat &imgFrame2Copy);
 IPM createHomography(cv::Mat inputImg);
 void firstProcess(cv::Mat inputFrame1, cv::Mat inputFrame2,cv::Mat &outputThresh, IPM &ipm);
+void updateTrajectoire(cv::Mat inputFrame, cv::String title, const std::vector<Blob> &existingBlobs);
+void countPedestriansCarsTrucks(const std::vector<Blob> &Blobs);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 int main(void) {
@@ -42,6 +44,9 @@ int main(void) {
     cv::Mat outputImg;
 
     std::vector<Blob> blobs;
+
+    // when a blob crossed the line, we stock it a vector in order that at the end to fine if it is a piedestran, car, or trunk
+    std::vector<Blob> blobs_crossed_line;
 
     cv::Point crossingLine[2];
 
@@ -123,7 +128,7 @@ int main(void) {
 
 
         /**
-          * Pour chaque différents blobs détectés, on test si il correspond à un objet en mouvement ou à du bruit
+          * Pour chaque différent blob détecté, on teste si il correspond à un objet en mouvement ou à du bruit
           */
 
         for (auto &convexHull : convexHulls) {
@@ -154,7 +159,12 @@ int main(void) {
 
         imgFrame2Copy = imgFrame2.clone();          // get another copy of frame 2 since we changed the previous frame 2 copy in the processing above
 
-        bool blnAtLeastOneBlobCrossedTheLine = checkIfBlobsCrossedTheLine(blobs, intHorizontalLinePosition, carCount);
+        bool blnAtLeastOneBlobCrossedTheLine = checkIfBlobsCrossedTheLine(blobs, blobs_crossed_line, intHorizontalLinePosition, carCount);
+
+
+        // Enregistre la trajectoire des différents objets
+        updateTrajectoire(imgFrame2Copy, "trajectoire.png", blobs);
+        imgFrame2Copy = imgFrame2.clone();          // get another copy of frame 2 since we changed the previous frame 2 copy in the processing above
 
         /// affiche les informations sur l'image de départ sans homographie
         /*
@@ -193,7 +203,6 @@ int main(void) {
         cv::Mat tmp;
         ipm.applyHomography( imgFrame2Copy, tmp );
 
-
         //cv::waitKey(0);                 // uncomment this line to go frame by frame for debugging
         
                 // now we prepare for the next iteration
@@ -222,7 +231,185 @@ int main(void) {
     }
     // note that if the user did press esc, we don't need to hold the windows open, we can simply let the program end which will close the windows
 
+
+    countPedestriansCarsTrucks(blobs_crossed_line);
+
     return(0);
+}
+
+/**
+ * @brief countPedestriansCarsTrucks
+ * @param blobs
+ *
+ * Différencie les piétons, les voitures et les camions par l'algorithme des kmeans.
+ * Les paramètre du kmeans sont la largeur et la longueur des blobs
+ */
+void countPedestriansCarsTrucks(const std::vector<Blob> &blobs)
+{
+    cv::Mat drawCluster(400, 400, CV_8UC3, SCALAR_WHITE);
+
+    std::vector<cv::Point2f> points_width_height;
+
+    // Parcours tout les blobs afin de récuperer leur largeur et leur longeur que l'on sauvegarde dans un vecteur afin d'appliquer l'algo des kmeans
+    for (const Blob &blob : blobs)
+    {
+        const cv::Point2f point(blob.currentBoundingRect.width, blob.currentBoundingRect.height);
+      //  cv::circle(drawCluster, point, 1, SCALAR_BLACK, 2);
+        points_width_height.push_back(point);
+    }
+
+    // Need to use a matrice for kmeans (assert fail i case of vector
+    cv::Mat data_mat(points_width_height.size(), 2, CV_32FC1, &points_width_height[0]), labels, centers;
+
+    /// k = 3 => Pedestrians, cars, trunks
+    int k = 3;
+    if (blobs.size()<3)
+    {
+        std::cout<<"Not enough samples in order to differenciate Pedestrians from cars " << std::endl;
+        return;
+    }
+    cv::kmeans(data_mat, k, labels,
+               cv::TermCriteria( cv::TermCriteria::EPS + cv::TermCriteria::COUNT, 10, 1.0),
+                  3, cv::KMEANS_PP_CENTERS, centers);
+
+
+    std::vector<float> area_cluster;
+    // Parcours tout les centre de cluster pour les afficher aussi
+    for (int i = 0; i < k; ++i)
+    {
+        cv::Point c = centers.at<cv::Point2f>(i);
+        cv::circle(drawCluster, c, 3, SCALAR_BLACK, 6);
+        area_cluster.push_back(c.x * c.y);
+    }
+
+    int nb_sample_cluster1 = 0, nb_sample_cluster2 = 0, nb_sample_cluster3 = 0;
+
+    // Parcours tous les echantillons et determine dans quels clusters ils se trouvent
+    for (int i = 0; i < blobs.size(); ++i)
+    {
+        int clusterIdx = labels.at<int>(i);
+        cv::Point ipt = data_mat.at<cv::Point2f>(i);
+
+        if (clusterIdx == 0)
+        {
+            cv::circle( drawCluster, ipt, 1, SCALAR_GREEN, 2);  // Dessine un point sur l'image de sortie
+            nb_sample_cluster1++;                           // Compte le nombre de point
+        }
+        else if (clusterIdx == 1)
+        {
+            cv::circle( drawCluster, ipt, 1, SCALAR_RED, 2);
+            nb_sample_cluster2++;
+        }
+        else
+        {
+            cv::circle( drawCluster, ipt, 1, SCALAR_YELLOW, 2);
+            nb_sample_cluster3++;
+        }
+    }
+
+    float area_pedestrians, area_cars, area_trucks;
+
+    /*if (area_cluster(0) > area_cluster(1) )
+    {
+        if (area_cluster(0) > area_cluster(2))
+        {
+            air_pedestrians = area_cluster(0);
+            if (area_cluster(1) > area_cluster(2))
+            {
+                air_cars
+                air_pedestrians = area_cluster(2);
+            }
+        }
+
+    }*/
+
+
+    std::map<float,int> area_and_number;
+    area_and_number.insert(std::pair<float,int>(area_cluster[0],nb_sample_cluster1));
+    area_and_number.insert(std::pair<float,int>(area_cluster[1],nb_sample_cluster2));
+    area_and_number.insert(std::pair<float,int>(area_cluster[2],nb_sample_cluster3));
+
+    std::map<float,int>::iterator it;
+    int i=0;
+
+
+    // pour parcourir toutes les paires de la map
+    for(it=area_and_number.begin() ; it!=area_and_number.end() ; ++it)
+    {
+        if (i ==0)
+            std::cout<<"Piétons: "  << it->second << std::endl;
+        else if (i == 1)
+            std::cout<<"Voitures: " << it->second << std::endl;
+        else
+            std::cout<<"Camions: "  << it->second << std::endl;
+        i++;
+
+    }
+
+
+
+    cv::imwrite("differentiation_pietons_voiture_camion.png", drawCluster);
+
+
+  //  cv::imshow("kmeans", drawCluster);
+
+    return ;
+}
+
+
+/**
+ * @brief updateTrajectoire
+ * @param inputOuputFrame
+ *      => Image sur laquelle on dessine les trajectoires
+ * @param title
+ *      => titre de l'image que l'on enregistre, si title == "" ; on n'enregistre pas l'image
+ * @param existingBlobs
+ */
+void updateTrajectoire(cv::Mat inputOuputFrame, cv::String title, const std::vector<Blob> &existingBlobs)
+{
+    cv::Point centreBlob;
+
+    // déclaration d'un vecteur de point pour l'image noir
+    std::vector<std::vector<cv::Point>> stockageCenterBlob;
+    cv::vector<cv::Point> stockageCenterIntermediaire;
+
+    for (const Blob &blobtest : existingBlobs)
+    {
+       stockageCenterIntermediaire.clear();
+       for (const cv::Point &center : blobtest.centerPositions)
+       {
+            cv::circle(inputOuputFrame, center, 1, SCALAR_WHITE, 1);
+            centreBlob = center;
+            // on stocke nos centre dans le vecteur stockage
+            stockageCenterIntermediaire.push_back(center);
+        }
+       stockageCenterBlob.push_back(stockageCenterIntermediaire);
+    }
+
+    // déclaration d'une image noire
+    cv::Mat imgFrameNB;
+    cv::cvtColor(inputOuputFrame, imgFrameNB, CV_BGR2GRAY);
+    cv::Mat imgFrameBlobTrackingNoir(inputOuputFrame.rows, inputOuputFrame.cols, CV_8UC3, cv::Scalar(0,0,0));
+    //imshow("imgFrameBlobTrackingNoir", imgFrameBlobTrackingNoir);
+    imgFrameNB = imgFrameBlobTrackingNoir.clone();
+
+    for (std::vector<cv::Point> &vecteurCentre : stockageCenterBlob)
+    {
+        cv::Point Pointsauvegarde = vecteurCentre.front();
+        for (cv::Point &pointCentre : vecteurCentre)
+        {
+            cv::line(imgFrameNB, Pointsauvegarde, pointCentre, SCALAR_WHITE, 1,8, 0);
+            Pointsauvegarde = pointCentre;
+           // cv::circle(imgFrameNB, pointCentre, 1, SCALAR_WHITE, 1);
+        }
+    }
+
+    if (title != "")
+    {
+        cv::imwrite(title, imgFrameNB);
+    }
+
+    return;
 }
 
 /// Fonction pour récupérer les paramètres de l'homographie
@@ -596,7 +783,7 @@ void drawAndShowContours(cv::Size imageSize, std::vector<Blob> blobs, std::strin
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-bool checkIfBlobsCrossedTheLine(std::vector<Blob> &blobs, int &intHorizontalLinePosition, int &carCount) {
+bool checkIfBlobsCrossedTheLine(std::vector<Blob> &blobs, std::vector<Blob> &blobs_crossed_line, int &intHorizontalLinePosition, int &carCount) {
     bool blnAtLeastOneBlobCrossedTheLine = false;
 
     for (auto blob : blobs) {
@@ -609,6 +796,7 @@ bool checkIfBlobsCrossedTheLine(std::vector<Blob> &blobs, int &intHorizontalLine
             //if (blob.centerPositions[prevFrameIndex].y >= intHorizontalLinePosition && blob.centerPositions[currFrameIndex].y < intHorizontalLinePosition) {  // bas vers haut
                 carCount++;
                 blnAtLeastOneBlobCrossedTheLine = true;
+                blobs_crossed_line.push_back(blob);
             }
         }
 
